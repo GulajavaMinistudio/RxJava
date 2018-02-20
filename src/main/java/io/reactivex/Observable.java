@@ -6116,12 +6116,16 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Collects items emitted by the source ObservableSource into a single mutable data structure and returns
+     * Collects items emitted by the finite source ObservableSource into a single mutable data structure and returns
      * a Single that emits this structure.
      * <p>
      * <img width="640" height="330" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/collect.2.png" alt="">
      * <p>
      * This is a simplified version of {@code reduce} that does not need to return the state on each pass.
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulator object to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code collect} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -6146,12 +6150,16 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Collects items emitted by the source ObservableSource into a single mutable data structure and returns
+     * Collects items emitted by the finite source ObservableSource into a single mutable data structure and returns
      * a Single that emits this structure.
      * <p>
      * <img width="640" height="330" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/collectInto.o.png" alt="">
      * <p>
      * This is a simplified version of {@code reduce} that does not need to return the state on each pass.
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulator object to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code collectInto} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -8992,6 +9000,77 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
+     * Merges the sequence of items of this Observable with the success value of the other SingleSource.
+     * <p>
+     * <img width="640" height="380" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/merge.png" alt="">
+     * <p>
+     * The success value of the other {@code SingleSource} can get interleaved at any point of this
+     * {@code Observable} sequence.
+     * <dl>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code mergeWith} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     *
+     * @param other the {@code SingleSource} whose success value to merge with
+     * @return the new Observable instance
+     * @since 2.1.10 - experimental
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final Observable<T> mergeWith(@NonNull SingleSource<? extends T> other) {
+        ObjectHelper.requireNonNull(other, "other is null");
+        return RxJavaPlugins.onAssembly(new ObservableMergeWithSingle<T>(this, other));
+    }
+
+    /**
+     * Merges the sequence of items of this Observable with the success value of the other MaybeSource
+     * or waits both to complete normally if the MaybeSource is empty.
+     * <p>
+     * <img width="640" height="380" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/merge.png" alt="">
+     * <p>
+     * The success value of the other {@code MaybeSource} can get interleaved at any point of this
+     * {@code Observable} sequence.
+     * <dl>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code mergeWith} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     *
+     * @param other the {@code MaybeSource} which provides a success value to merge with or completes
+     * @return the new Observable instance
+     * @since 2.1.10 - experimental
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final Observable<T> mergeWith(@NonNull MaybeSource<? extends T> other) {
+        ObjectHelper.requireNonNull(other, "other is null");
+        return RxJavaPlugins.onAssembly(new ObservableMergeWithMaybe<T>(this, other));
+    }
+
+    /**
+     * Relays the items of this Observable and completes only when the other CompletableSource completes
+     * as well.
+     * <p>
+     * <img width="640" height="380" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/merge.png" alt="">
+     * <dl>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code mergeWith} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     *
+     * @param other the {@code CompletableSource} to await for completion
+     * @return the new Observable instance
+     * @since 2.1.10 - experimental
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final Observable<T> mergeWith(@NonNull CompletableSource other) {
+        ObjectHelper.requireNonNull(other, "other is null");
+        return RxJavaPlugins.onAssembly(new ObservableMergeWithCompletable<T>(this, other));
+    }
+
+    /**
      * Modifies an ObservableSource to perform its emissions and notifications on a specified {@link Scheduler},
      * asynchronously with an unbounded buffer with {@link Flowable#bufferSize()} "island size".
      *
@@ -9357,7 +9436,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
     /**
      * Returns a Maybe that applies a specified accumulator function to the first item emitted by a source
      * ObservableSource, then feeds the result of that function along with the second item emitted by the source
-     * ObservableSource into the same function, and so on until all items have been emitted by the source ObservableSource,
+     * ObservableSource into the same function, and so on until all items have been emitted by the finite source ObservableSource,
      * and emits the final result from the final call to your function as its sole item.
      * <p>
      * <img width="640" height="320" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/reduce.2.png" alt="">
@@ -9365,6 +9444,10 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * This technique, which is called "reduce" here, is sometimes called "aggregate," "fold," "accumulate,"
      * "compress," or "inject" in other programming contexts. Groovy, for instance, has an {@code inject} method
      * that does a similar operation on lists.
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulator object to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code reduce} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -9389,7 +9472,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * Returns a Single that applies a specified accumulator function to the first item emitted by a source
      * ObservableSource and a specified seed value, then feeds the result of that function along with the second item
      * emitted by an ObservableSource into the same function, and so on until all items have been emitted by the
-     * source ObservableSource, emitting the final result from the final call to your function as its sole item.
+     * finite source ObservableSource, emitting the final result from the final call to your function as its sole item.
      * <p>
      * <img width="640" height="325" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/reduceSeed.o.png" alt="">
      * <p>
@@ -9414,6 +9497,10 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *
      * source.reduceWith(() -&gt; new ArrayList&lt;&gt;(), (list, item) -&gt; list.add(item)));
      * </code></pre>
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulator object to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code reduce} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -9443,7 +9530,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * Returns a Single that applies a specified accumulator function to the first item emitted by a source
      * ObservableSource and a seed value derived from calling a specified seedSupplier, then feeds the result
      * of that function along with the second item emitted by an ObservableSource into the same function,
-     * and so on until all items have been emitted by the source ObservableSource, emitting the final result
+     * and so on until all items have been emitted by the finite source ObservableSource, emitting the final result
      * from the final call to your function as its sole item.
      * <p>
      * <img width="640" height="325" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/reduceWith.o.png" alt="">
@@ -9451,6 +9538,10 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * This technique, which is called "reduce" here, is sometimes called "aggregate," "fold," "accumulate,"
      * "compress," or "inject" in other programming contexts. Groovy, for instance, has an {@code inject} method
      * that does a similar operation on lists.
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulator object to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code reduceWith} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -12845,12 +12936,17 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Returns a Single that emits a single HashMap containing all items emitted by the source ObservableSource,
-     * mapped by the keys returned by a specified {@code keySelector} function.
+     * Returns a Single that emits a single HashMap containing all items emitted by the
+     * finite source ObservableSource, mapped by the keys returned by a specified
+     * {@code keySelector} function.
      * <p>
      * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toMap.2.png" alt="">
      * <p>
      * If more than one source item maps to the same key, the HashMap will contain the latest of those items.
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated map to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toMap} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -12872,12 +12968,16 @@ public abstract class Observable<T> implements ObservableSource<T> {
 
     /**
      * Returns a Single that emits a single HashMap containing values corresponding to items emitted by the
-     * source ObservableSource, mapped by the keys returned by a specified {@code keySelector} function.
+     * finite source ObservableSource, mapped by the keys returned by a specified {@code keySelector} function.
      * <p>
      * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toMap.2.png" alt="">
      * <p>
      * If more than one source item maps to the same key, the HashMap will contain a single entry that
      * corresponds to the latest of those items.
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated map to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toMap} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -12905,9 +13005,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
 
     /**
      * Returns a Single that emits a single Map, returned by a specified {@code mapFactory} function, that
-     * contains keys and values extracted from the items emitted by the source ObservableSource.
+     * contains keys and values extracted from the items emitted by the finite source ObservableSource.
      * <p>
      * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toMap.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated map to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toMap} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -12939,9 +13043,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
 
     /**
      * Returns a Single that emits a single HashMap that contains an ArrayList of items emitted by the
-     * source ObservableSource keyed by a specified {@code keySelector} function.
+     * finite source ObservableSource keyed by a specified {@code keySelector} function.
      * <p>
      * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toMultiMap.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated map to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toMultimap} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -12966,10 +13074,14 @@ public abstract class Observable<T> implements ObservableSource<T> {
 
     /**
      * Returns a Single that emits a single HashMap that contains an ArrayList of values extracted by a
-     * specified {@code valueSelector} function from items emitted by the source ObservableSource, keyed by a
-     * specified {@code keySelector} function.
+     * specified {@code valueSelector} function from items emitted by the finite source ObservableSource,
+     * keyed by a specified {@code keySelector} function.
      * <p>
      * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toMultiMap.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated map to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toMultimap} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -13035,9 +13147,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
     /**
      * Returns a Single that emits a single Map, returned by a specified {@code mapFactory} function, that
      * contains an ArrayList of values, extracted by a specified {@code valueSelector} function from items
-     * emitted by the source ObservableSource and keyed by the {@code keySelector} function.
+     * emitted by the finite source ObservableSource and keyed by the {@code keySelector} function.
      * <p>
      * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toMultiMap.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated map to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toMultimap} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -13122,7 +13238,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Returns a Single that emits a list that contains the items emitted by the source ObservableSource, in a
+     * Returns a Single that emits a list that contains the items emitted by the finite source ObservableSource, in a
      * sorted order. Each item emitted by the ObservableSource must implement {@link Comparable} with respect to all
      * other items in the sequence.
      *
@@ -13131,6 +13247,10 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *             sequence is terminated with a {@link ClassCastException}.
      * <p>
      * <img width="640" height="310" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toSortedList.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated list to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toSortedList} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -13146,10 +13266,14 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Returns a Single that emits a list that contains the items emitted by the source ObservableSource, in a
+     * Returns a Single that emits a list that contains the items emitted by the finite source ObservableSource, in a
      * sorted order based on a specified comparison function.
      * <p>
      * <img width="640" height="310" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toSortedList.f.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated list to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toSortedList} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -13170,10 +13294,14 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Returns a Single that emits a list that contains the items emitted by the source ObservableSource, in a
+     * Returns a Single that emits a list that contains the items emitted by the finite source ObservableSource, in a
      * sorted order based on a specified comparison function.
      * <p>
      * <img width="640" height="310" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toSortedList.f.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated list to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toSortedList} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -13197,7 +13325,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Returns a Single that emits a list that contains the items emitted by the source ObservableSource, in a
+     * Returns a Single that emits a list that contains the items emitted by the finite source ObservableSource, in a
      * sorted order. Each item emitted by the ObservableSource must implement {@link Comparable} with respect to all
      * other items in the sequence.
      *
@@ -13206,6 +13334,10 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *             sequence is terminated with a {@link ClassCastException}.
      * <p>
      * <img width="640" height="310" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/toSortedList.2.png" alt="">
+     * <p>
+     * Note that this operator requires the upstream to signal {@code onComplete} for the accumulated list to
+     * be emitted. Sources that are infinite and never complete will never emit anything through this
+     * operator and an infinite source may lead to a fatal {@code OutOfMemoryError}.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toSortedList} does not operate by default on a particular {@link Scheduler}.</dd>
