@@ -25,6 +25,7 @@ import io.reactivex.functions.*;
 import io.reactivex.internal.functions.*;
 import io.reactivex.internal.fuseable.*;
 import io.reactivex.internal.operators.flowable.*;
+import io.reactivex.internal.operators.mixed.*;
 import io.reactivex.internal.operators.observable.ObservableFromPublisher;
 import io.reactivex.internal.schedulers.ImmediateThinScheduler;
 import io.reactivex.internal.subscribers.*;
@@ -6887,6 +6888,168 @@ public abstract class Flowable<T> implements Publisher<T> {
     }
 
     /**
+     * Maps the upstream items into {@link CompletableSource}s and subscribes to them one after the
+     * other completes.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapCompletable} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code CompletableSource} to become the next source to
+     *               be subscribed to
+     * @return a new Completable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapCompletableDelayError(Function)
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @BackpressureSupport(BackpressureKind.FULL)
+    @Experimental
+    public final Completable concatMapCompletable(Function<? super T, ? extends CompletableSource> mapper) {
+        return concatMapCompletable(mapper, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link CompletableSource}s and subscribes to them one after the
+     * other completes.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapCompletable} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code CompletableSource} to become the next source to
+     *               be subscribed to
+     * @param prefetch The number of upstream items to prefetch so that fresh items are
+     *                 ready to be mapped when a previous {@code CompletableSource} terminates.
+     *                 The operator replenishes after half of the prefetch amount has been consumed
+     *                 and turned into {@code CompletableSource}s.
+     * @return a new Completable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapCompletableDelayError(Function, boolean, int)
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @BackpressureSupport(BackpressureKind.FULL)
+    @Experimental
+    public final Completable concatMapCompletable(Function<? super T, ? extends CompletableSource> mapper, int prefetch) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        ObjectHelper.verifyPositive(prefetch, "prefetch");
+        return RxJavaPlugins.onAssembly(new FlowableConcatMapCompletable<T>(this, mapper, ErrorMode.IMMEDIATE, prefetch));
+    }
+
+    /**
+     * Maps the upstream items into {@link CompletableSource}s and subscribes to them one after the
+     * other terminates, delaying all errors till both this {@code Flowable} and all
+     * inner {@code CompletableSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapCompletableDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code CompletableSource} to become the next source to
+     *               be subscribed to
+     * @return a new Completable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapCompletable(Function, int)
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @BackpressureSupport(BackpressureKind.FULL)
+    @Experimental
+    public final Completable concatMapCompletableDelayError(Function<? super T, ? extends CompletableSource> mapper) {
+        return concatMapCompletableDelayError(mapper, true, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link CompletableSource}s and subscribes to them one after the
+     * other terminates, optionally delaying all errors till both this {@code Flowable} and all
+     * inner {@code CompletableSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapCompletableDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code CompletableSource} to become the next source to
+     *               be subscribed to
+     * @param tillTheEnd If {@code true}, errors from this {@code Flowable} or any of the
+     *                   inner {@code CompletableSource}s are delayed until all
+     *                   of them terminate. If {@code false}, an error from this
+     *                   {@code Flowable} is delayed until the current inner
+     *                   {@code CompletableSource} terminates and only then is
+     *                   it emitted to the downstream.
+     * @return a new Completable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapCompletable(Function)
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @BackpressureSupport(BackpressureKind.FULL)
+    @Experimental
+    public final Completable concatMapCompletableDelayError(Function<? super T, ? extends CompletableSource> mapper, boolean tillTheEnd) {
+        return concatMapCompletableDelayError(mapper, tillTheEnd, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link CompletableSource}s and subscribes to them one after the
+     * other terminates, optionally delaying all errors till both this {@code Flowable} and all
+     * inner {@code CompletableSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapCompletableDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code CompletableSource} to become the next source to
+     *               be subscribed to
+     * @param tillTheEnd If {@code true}, errors from this {@code Flowable} or any of the
+     *                   inner {@code CompletableSource}s are delayed until all
+     *                   of them terminate. If {@code false}, an error from this
+     *                   {@code Flowable} is delayed until the current inner
+     *                   {@code CompletableSource} terminates and only then is
+     *                   it emitted to the downstream.
+     * @param prefetch The number of upstream items to prefetch so that fresh items are
+     *                 ready to be mapped when a previous {@code CompletableSource} terminates.
+     *                 The operator replenishes after half of the prefetch amount has been consumed
+     *                 and turned into {@code CompletableSource}s.
+     * @return a new Completable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapCompletable(Function, int)
+     */
+    @CheckReturnValue
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @BackpressureSupport(BackpressureKind.FULL)
+    @Experimental
+    public final Completable concatMapCompletableDelayError(Function<? super T, ? extends CompletableSource> mapper, boolean tillTheEnd, int prefetch) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        ObjectHelper.verifyPositive(prefetch, "prefetch");
+        return RxJavaPlugins.onAssembly(new FlowableConcatMapCompletable<T>(this, mapper, tillTheEnd ? ErrorMode.END : ErrorMode.BOUNDARY, prefetch));
+    }
+
+    /**
      * Maps each of the items into a Publisher, subscribes to them one after the other,
      * one at a time and emits their values in order
      * while delaying any error from either this or any of the inner Publishers
@@ -7148,6 +7311,362 @@ public abstract class Flowable<T> implements Publisher<T> {
         ObjectHelper.requireNonNull(mapper, "mapper is null");
         ObjectHelper.verifyPositive(prefetch, "prefetch");
         return RxJavaPlugins.onAssembly(new FlowableFlattenIterable<T, U>(this, mapper, prefetch));
+    }
+
+    /**
+     * Maps the upstream items into {@link MaybeSource}s and subscribes to them one after the
+     * other succeeds or completes, emits their success value if available or terminates immediately if
+     * either this {@code Flowable} or the current inner {@code MaybeSource} fail.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapMaybe} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code MaybeSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code MaybeSource} to become the next source to
+     *               be subscribed to
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapMaybeDelayError(Function)
+     * @see #concatMapMaybe(Function, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapMaybe(Function<? super T, ? extends MaybeSource<? extends R>> mapper) {
+        return concatMapMaybe(mapper, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link MaybeSource}s and subscribes to them one after the
+     * other succeeds or completes, emits their success value if available or terminates immediately if
+     * either this {@code Flowable} or the current inner {@code MaybeSource} fail.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapMaybe} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code MaybeSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code MaybeSource} to become the next source to
+     *               be subscribed to
+     * @param prefetch The number of upstream items to prefetch so that fresh items are
+     *                 ready to be mapped when a previous {@code MaybeSource} terminates.
+     *                 The operator replenishes after half of the prefetch amount has been consumed
+     *                 and turned into {@code MaybeSource}s.
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapMaybe(Function)
+     * @see #concatMapMaybeDelayError(Function, boolean, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapMaybe(Function<? super T, ? extends MaybeSource<? extends R>> mapper, int prefetch) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        ObjectHelper.verifyPositive(prefetch, "prefetch");
+        return RxJavaPlugins.onAssembly(new FlowableConcatMapMaybe<T, R>(this, mapper, ErrorMode.IMMEDIATE, prefetch));
+    }
+
+    /**
+     * Maps the upstream items into {@link MaybeSource}s and subscribes to them one after the
+     * other terminates, emits their success value if available and delaying all errors
+     * till both this {@code Flowable} and all inner {@code MaybeSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapMaybeDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code MaybeSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code MaybeSource} to become the next source to
+     *               be subscribed to
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapMaybe(Function)
+     * @see #concatMapMaybeDelayError(Function, boolean)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapMaybeDelayError(Function<? super T, ? extends MaybeSource<? extends R>> mapper) {
+        return concatMapMaybeDelayError(mapper, true, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link MaybeSource}s and subscribes to them one after the
+     * other terminates, emits their success value if available and optionally delaying all errors
+     * till both this {@code Flowable} and all inner {@code MaybeSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapMaybeDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code MaybeSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code MaybeSource} to become the next source to
+     *               be subscribed to
+     * @param tillTheEnd If {@code true}, errors from this {@code Flowable} or any of the
+     *                   inner {@code MaybeSource}s are delayed until all
+     *                   of them terminate. If {@code false}, an error from this
+     *                   {@code Flowable} is delayed until the current inner
+     *                   {@code MaybeSource} terminates and only then is
+     *                   it emitted to the downstream.
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapMaybe(Function, int)
+     * @see #concatMapMaybeDelayError(Function, boolean, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapMaybeDelayError(Function<? super T, ? extends MaybeSource<? extends R>> mapper, boolean tillTheEnd) {
+        return concatMapMaybeDelayError(mapper, tillTheEnd, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link MaybeSource}s and subscribes to them one after the
+     * other terminates, emits their success value if available and optionally delaying all errors
+     * till both this {@code Flowable} and all inner {@code MaybeSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapMaybeDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code MaybeSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code MaybeSource} to become the next source to
+     *               be subscribed to
+     * @param tillTheEnd If {@code true}, errors from this {@code Flowable} or any of the
+     *                   inner {@code MaybeSource}s are delayed until all
+     *                   of them terminate. If {@code false}, an error from this
+     *                   {@code Flowable} is delayed until the current inner
+     *                   {@code MaybeSource} terminates and only then is
+     *                   it emitted to the downstream.
+     * @param prefetch The number of upstream items to prefetch so that fresh items are
+     *                 ready to be mapped when a previous {@code MaybeSource} terminates.
+     *                 The operator replenishes after half of the prefetch amount has been consumed
+     *                 and turned into {@code MaybeSource}s.
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapMaybe(Function, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapMaybeDelayError(Function<? super T, ? extends MaybeSource<? extends R>> mapper, boolean tillTheEnd, int prefetch) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        ObjectHelper.verifyPositive(prefetch, "prefetch");
+        return RxJavaPlugins.onAssembly(new FlowableConcatMapMaybe<T, R>(this, mapper, tillTheEnd ? ErrorMode.END : ErrorMode.BOUNDARY, prefetch));
+    }
+
+    /**
+     * Maps the upstream items into {@link SingleSource}s and subscribes to them one after the
+     * other succeeds, emits their success values or terminates immediately if
+     * either this {@code Flowable} or the current inner {@code SingleSource} fail.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapSingle} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code SingleSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code SingleSource} to become the next source to
+     *               be subscribed to
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapSingleDelayError(Function)
+     * @see #concatMapSingle(Function, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapSingle(Function<? super T, ? extends SingleSource<? extends R>> mapper) {
+        return concatMapSingle(mapper, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link SingleSource}s and subscribes to them one after the
+     * other succeeds, emits their success values or terminates immediately if
+     * either this {@code Flowable} or the current inner {@code SingleSource} fail.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapSingle} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code SingleSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code SingleSource} to become the next source to
+     *               be subscribed to
+     * @param prefetch The number of upstream items to prefetch so that fresh items are
+     *                 ready to be mapped when a previous {@code SingleSource} terminates.
+     *                 The operator replenishes after half of the prefetch amount has been consumed
+     *                 and turned into {@code SingleSource}s.
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapSingle(Function)
+     * @see #concatMapSingleDelayError(Function, boolean, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapSingle(Function<? super T, ? extends SingleSource<? extends R>> mapper, int prefetch) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        ObjectHelper.verifyPositive(prefetch, "prefetch");
+        return RxJavaPlugins.onAssembly(new FlowableConcatMapSingle<T, R>(this, mapper, ErrorMode.IMMEDIATE, prefetch));
+    }
+
+    /**
+     * Maps the upstream items into {@link SingleSource}s and subscribes to them one after the
+     * other succeeds or fails, emits their success values and delays all errors
+     * till both this {@code Flowable} and all inner {@code SingleSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapSingleDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code SingleSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code SingleSource} to become the next source to
+     *               be subscribed to
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapSingle(Function)
+     * @see #concatMapSingleDelayError(Function, boolean)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapSingleDelayError(Function<? super T, ? extends SingleSource<? extends R>> mapper) {
+        return concatMapSingleDelayError(mapper, true, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link SingleSource}s and subscribes to them one after the
+     * other succeeds or fails, emits their success values and optionally delays all errors
+     * till both this {@code Flowable} and all inner {@code SingleSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapSingleDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code SingleSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code SingleSource} to become the next source to
+     *               be subscribed to
+     * @param tillTheEnd If {@code true}, errors from this {@code Flowable} or any of the
+     *                   inner {@code SingleSource}s are delayed until all
+     *                   of them terminate. If {@code false}, an error from this
+     *                   {@code Flowable} is delayed until the current inner
+     *                   {@code SingleSource} terminates and only then is
+     *                   it emitted to the downstream.
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapSingle(Function, int)
+     * @see #concatMapSingleDelayError(Function, boolean, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapSingleDelayError(Function<? super T, ? extends SingleSource<? extends R>> mapper, boolean tillTheEnd) {
+        return concatMapSingleDelayError(mapper, tillTheEnd, 2);
+    }
+
+    /**
+     * Maps the upstream items into {@link SingleSource}s and subscribes to them one after the
+     * other succeeds or fails, emits their success values and optionally delays  errors
+     * till both this {@code Flowable} and all inner {@code SingleSource}s terminate.
+     * <p>
+     * <img width="640" height="305" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/concatMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator expects the upstream to support backpressure and honors
+     *  the backpressure from downstream. If this {@code Flowable} violates the rule, the operator will
+     *  signal a {@code MissingBackpressureException}.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code concatMapSingleDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the result type of the inner {@code SingleSource}s
+     * @param mapper the function called with the upstream item and should return
+     *               a {@code SingleSource} to become the next source to
+     *               be subscribed to
+     * @param tillTheEnd If {@code true}, errors from this {@code Flowable} or any of the
+     *                   inner {@code SingleSource}s are delayed until all
+     *                   of them terminate. If {@code false}, an error from this
+     *                   {@code Flowable} is delayed until the current inner
+     *                   {@code SingleSource} terminates and only then is
+     *                   it emitted to the downstream.
+     * @param prefetch The number of upstream items to prefetch so that fresh items are
+     *                 ready to be mapped when a previous {@code SingleSource} terminates.
+     *                 The operator replenishes after half of the prefetch amount has been consumed
+     *                 and turned into {@code SingleSource}s.
+     * @return a new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #concatMapSingle(Function, int)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.FULL)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> concatMapSingleDelayError(Function<? super T, ? extends SingleSource<? extends R>> mapper, boolean tillTheEnd, int prefetch) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        ObjectHelper.verifyPositive(prefetch, "prefetch");
+        return RxJavaPlugins.onAssembly(new FlowableConcatMapSingle<T, R>(this, mapper, tillTheEnd ? ErrorMode.END : ErrorMode.BOUNDARY, prefetch));
     }
 
     /**
@@ -13951,6 +14470,98 @@ public abstract class Flowable<T> implements Publisher<T> {
         return switchMap0(mapper, bufferSize, false);
     }
 
+
+    /**
+     * Maps the upstream values into {@link CompletableSource}s, subscribes to the newer one while
+     * disposing the subscription to the previous {@code CompletableSource}, thus keeping at most one
+     * active {@code CompletableSource} running.
+     * <p>
+     * <img width="640" height="521" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/switchMapCompletable.f.png" alt="">
+     * <p>
+     * Since a {@code CompletableSource} doesn't produce any items, the resulting reactive type of
+     * this operator is a {@link Completable} that can only indicate successful completion or
+     * a failure in any of the inner {@code CompletableSource}s or the failure of the current
+     * {@link Flowable}.
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator consumes the current {@link Flowable} in an unbounded manner and otherwise
+     *  does not have backpressure in its return type because no items are ever produced.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code switchMapCompletable} does not operate by default on a particular {@link Scheduler}.</dd>
+     *  <dt><b>Error handling:</b></dt>
+     *  <dd>If either this {@code Flowable} or the active {@code CompletableSource} signals an {@code onError},
+     *  the resulting {@code Completable} is terminated immediately with that {@code Throwable}.
+     *  Use the {@link #switchMapCompletableDelayError(Function)} to delay such inner failures until
+     *  every inner {@code CompletableSource}s and the main {@code Flowable} terminates in some fashion.
+     *  If they fail concurrently, the operator may combine the {@code Throwable}s into a
+     *  {@link io.reactivex.exceptions.CompositeException CompositeException}
+     *  and signal it to the downstream instead. If any inactivated (switched out) {@code CompletableSource}
+     *  signals an {@code onError} late, the {@code Throwable}s will be signalled to the global error handler via
+     *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors.
+     *  </dd>
+     * </dl>
+     * @param mapper the function called with each upstream item and should return a
+     *               {@link CompletableSource} to be subscribed to and awaited for
+     *               (non blockingly) for its terminal event
+     * @return the new Completable instance
+     * @since 2.1.11 - experimental
+     * @see #switchMapCompletableDelayError(Function)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.UNBOUNDED_IN)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final Completable switchMapCompletable(@NonNull Function<? super T, ? extends CompletableSource> mapper) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        return RxJavaPlugins.onAssembly(new FlowableSwitchMapCompletable<T>(this, mapper, false));
+    }
+
+    /**
+     * Maps the upstream values into {@link CompletableSource}s, subscribes to the newer one while
+     * disposing the subscription to the previous {@code CompletableSource}, thus keeping at most one
+     * active {@code CompletableSource} running and delaying any main or inner errors until all
+     * of them terminate.
+     * <p>
+     * <img width="640" height="453" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/switchMapCompletableDelayError.f.png" alt="">
+     * <p>
+     * Since a {@code CompletableSource} doesn't produce any items, the resulting reactive type of
+     * this operator is a {@link Completable} that can only indicate successful completion or
+     * a failure in any of the inner {@code CompletableSource}s or the failure of the current
+     * {@link Flowable}.
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator consumes the current {@link Flowable} in an unbounded manner and otherwise
+     *  does not have backpressure in its return type because no items are ever produced.</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code switchMapCompletableDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     *  <dt><b>Error handling:</b></dt>
+     *  <dd>Errors of this {@code Flowable} and all the {@code CompletableSource}s, who had the chance
+     *  to run to their completion, are delayed until
+     *  all of them terminate in some fashion. At this point, if there was only one failure, the respective
+     *  {@code Throwable} is emitted to the dowstream. It there were more than one failures, the
+     *  operator combines all {@code Throwable}s into a {@link io.reactivex.exceptions.CompositeException CompositeException}
+     *  and signals that to the downstream.
+     *  If any inactivated (switched out) {@code CompletableSource}
+     *  signals an {@code onError} late, the {@code Throwable}s will be signalled to the global error handler via
+     *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors.
+     *  </dd>
+     * </dl>
+     * @param mapper the function called with each upstream item and should return a
+     *               {@link CompletableSource} to be subscribed to and awaited for
+     *               (non blockingly) for its terminal event
+     * @return the new Completable instance
+     * @since 2.1.11 - experimental
+     * @see #switchMapCompletableDelayError(Function)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.UNBOUNDED_IN)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final Completable switchMapCompletableDelayError(@NonNull Function<? super T, ? extends CompletableSource> mapper) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        return RxJavaPlugins.onAssembly(new FlowableSwitchMapCompletable<T>(this, mapper, true));
+    }
+
     /**
      * Returns a new Publisher by applying a function that you supply to each item emitted by the source
      * Publisher that returns a Publisher, and then emitting the items emitted by the most recently emitted
@@ -14035,6 +14646,146 @@ public abstract class Flowable<T> implements Publisher<T> {
             return FlowableScalarXMap.scalarXMap(v, mapper);
         }
         return RxJavaPlugins.onAssembly(new FlowableSwitchMap<T, R>(this, mapper, bufferSize, delayError));
+    }
+
+    /**
+     * Maps the upstream items into {@link MaybeSource}s and switches (subscribes) to the newer ones
+     * while disposing the older ones (and ignoring their signals) and emits the latest success value of the current one if
+     * available while failing immediately if this {@code Flowable} or any of the
+     * active inner {@code MaybeSource}s fail.
+     * <p>
+     * <img width="640" height="350" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/switchMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator honors backpressure from downstream. The main {@code Flowable} is consumed in an
+     *  unbounded manner (i.e., without backpressure).</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code switchMapMaybe} does not operate by default on a particular {@link Scheduler}.</dd>
+     *  <dt><b>Error handling:</b></dt>
+     *  <dd>This operator terminates with an {@code onError} if this {@code Flowable} or any of
+     *  the inner {@code MaybeSource}s fail while they are active. When this happens concurrently, their
+     *  individual {@code Throwable} errors may get combined and emitted as a single
+     *  {@link io.reactivex.exceptions.CompositeException CompositeException}. Otherwise, a late
+     *  (i.e., inactive or switched out) {@code onError} from this {@code Flowable} or from any of
+     *  the inner {@code MaybeSource}s will be forwarded to the global error handler via
+     *  {@link io.reactivex.plugins.RxJavaPlugins#onError(Throwable)} as
+     *  {@link io.reactivex.exceptions.UndeliverableException UndeliverableException}</dd>
+     * </dl>
+     * @param <R> the output value type
+     * @param mapper the function called with the current upstream event and should
+     *               return a {@code MaybeSource} to replace the current active inner source
+     *               and get subscribed to.
+     * @return the new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #switchMapMaybe(Function)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.UNBOUNDED_IN)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> switchMapMaybe(@NonNull Function<? super T, ? extends MaybeSource<? extends R>> mapper) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        return RxJavaPlugins.onAssembly(new FlowableSwitchMapMaybe<T, R>(this, mapper, false));
+    }
+
+    /**
+     * Maps the upstream items into {@link MaybeSource}s and switches (subscribes) to the newer ones
+     * while disposing the older ones  (and ignoring their signals) and emits the latest success value of the current one if
+     * available, delaying errors from this {@code Flowable} or the inner {@code MaybeSource}s until all terminate.
+     * <p>
+     * <img width="640" height="350" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/switchMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator honors backpressure from downstream. The main {@code Flowable} is consumed in an
+     *  unbounded manner (i.e., without backpressure).</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code switchMapMaybeDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the output value type
+     * @param mapper the function called with the current upstream event and should
+     *               return a {@code MaybeSource} to replace the current active inner source
+     *               and get subscribed to.
+     * @return the new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #switchMapMaybe(Function)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.UNBOUNDED_IN)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> switchMapMaybeDelayError(@NonNull Function<? super T, ? extends MaybeSource<? extends R>> mapper) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        return RxJavaPlugins.onAssembly(new FlowableSwitchMapMaybe<T, R>(this, mapper, true));
+    }
+
+    /**
+     * Maps the upstream items into {@link SingleSource}s and switches (subscribes) to the newer ones
+     * while disposing the older ones (and ignoring their signals) and emits the latest success value of the current one
+     * while failing immediately if this {@code Flowable} or any of the
+     * active inner {@code SingleSource}s fail.
+     * <p>
+     * <img width="640" height="350" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/switchMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator honors backpressure from downstream. The main {@code Flowable} is consumed in an
+     *  unbounded manner (i.e., without backpressure).</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code switchMapSingle} does not operate by default on a particular {@link Scheduler}.</dd>
+     *  <dt><b>Error handling:</b></dt>
+     *  <dd>This operator terminates with an {@code onError} if this {@code Flowable} or any of
+     *  the inner {@code SingleSource}s fail while they are active. When this happens concurrently, their
+     *  individual {@code Throwable} errors may get combined and emitted as a single
+     *  {@link io.reactivex.exceptions.CompositeException CompositeException}. Otherwise, a late
+     *  (i.e., inactive or switched out) {@code onError} from this {@code Flowable} or from any of
+     *  the inner {@code SingleSource}s will be forwarded to the global error handler via
+     *  {@link io.reactivex.plugins.RxJavaPlugins#onError(Throwable)} as
+     *  {@link io.reactivex.exceptions.UndeliverableException UndeliverableException}</dd>
+     * </dl>
+     * @param <R> the output value type
+     * @param mapper the function called with the current upstream event and should
+     *               return a {@code SingleSource} to replace the current active inner source
+     *               and get subscribed to.
+     * @return the new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #switchMapSingle(Function)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.UNBOUNDED_IN)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> switchMapSingle(@NonNull Function<? super T, ? extends SingleSource<? extends R>> mapper) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        return RxJavaPlugins.onAssembly(new FlowableSwitchMapSingle<T, R>(this, mapper, false));
+    }
+
+    /**
+     * Maps the upstream items into {@link SingleSource}s and switches (subscribes) to the newer ones
+     * while disposing the older ones  (and ignoring their signals) and emits the latest success value of the current one,
+     * delaying errors from this {@code Flowable} or the inner {@code SingleSource}s until all terminate.
+     * <p>
+     * <img width="640" height="350" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/switchMap.png" alt="">
+     * <dl>
+     *  <dt><b>Backpressure:</b></dt>
+     *  <dd>The operator honors backpressure from downstream. The main {@code Flowable} is consumed in an
+     *  unbounded manner (i.e., without backpressure).</dd>
+     *  <dt><b>Scheduler:</b></dt>
+     *  <dd>{@code switchMapSingleDelayError} does not operate by default on a particular {@link Scheduler}.</dd>
+     * </dl>
+     * @param <R> the output value type
+     * @param mapper the function called with the current upstream event and should
+     *               return a {@code SingleSource} to replace the current active inner source
+     *               and get subscribed to.
+     * @return the new Flowable instance
+     * @since 2.1.11 - experimental
+     * @see #switchMapSingle(Function)
+     */
+    @CheckReturnValue
+    @BackpressureSupport(BackpressureKind.UNBOUNDED_IN)
+    @SchedulerSupport(SchedulerSupport.NONE)
+    @Experimental
+    public final <R> Flowable<R> switchMapSingleDelayError(@NonNull Function<? super T, ? extends SingleSource<? extends R>> mapper) {
+        ObjectHelper.requireNonNull(mapper, "mapper is null");
+        return RxJavaPlugins.onAssembly(new FlowableSwitchMapSingle<T, R>(this, mapper, true));
     }
 
     /**
