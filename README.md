@@ -33,7 +33,7 @@ The [1.x version](https://github.com/ReactiveX/RxJava/tree/1.x) is end-of-life a
 The first step is to include RxJava 2 into your project, for example, as a Gradle compile dependency:
 
 ```groovy
-compile "io.reactivex.rxjava2:rxjava:2.x.y"
+implementation "io.reactivex.rxjava2:rxjava:2.x.y"
 ```
 
 (Please replace `x` and `y` with the latest version numbers: [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.reactivex.rxjava2/rxjava/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.reactivex.rxjava2/rxjava)
@@ -240,7 +240,7 @@ Note, however, that `flatMap` doesn't guarantee any order and the end result fro
   - `concatMap` that maps and runs one inner flow at a time and
   - `concatMapEager` which runs all inner flows "at once" but the output flow will be in the order those inner flows were created.
 
-Alternatively, there is a [*beta*](#beta) operator `Flowable.parallel()` and type `ParallelFlowable` that helps achieve the same parallel processing pattern:
+Alternatively, the `Flowable.parallel()` operator and the `ParallelFlowable` type help achieve the same parallel processing pattern:
 
 ```java
 Flowable.range(1, 10)
