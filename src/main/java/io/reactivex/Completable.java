@@ -90,7 +90,7 @@ import io.reactivex.schedulers.Schedulers;
  * d.dispose();
  * </code></pre>
  * <p>
- * Note that by design, subscriptions via {@link #subscribe(CompletableObserver)} can't be cancelled/disposed
+ * Note that by design, subscriptions via {@link #subscribe(CompletableObserver)} can't be disposed
  * from the outside (hence the
  * {@code void} return of the {@link #subscribe(CompletableObserver)} method) and it is the
  * responsibility of the implementor of the {@code CompletableObserver} to allow this to happen.
@@ -105,7 +105,7 @@ import io.reactivex.schedulers.Schedulers;
 public abstract class Completable implements CompletableSource {
     /**
      * Returns a Completable which terminates as soon as one of the source Completables
-     * terminates (normally or with an error) and cancels all other Completables.
+     * terminates (normally or with an error) and disposes all other Completables.
      * <p>
      * <img width="640" height="518" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.ambArray.png" alt="">
      * <dl>
@@ -133,7 +133,7 @@ public abstract class Completable implements CompletableSource {
 
     /**
      * Returns a Completable which terminates as soon as one of the source Completables
-     * terminates (normally or with an error) and cancels all other Completables.
+     * terminates (normally or with an error) and disposes all other Completables.
      * <p>
      * <img width="640" height="518" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.amb.png" alt="">
      * <dl>
@@ -306,7 +306,7 @@ public abstract class Completable implements CompletableSource {
     /**
      * Constructs a Completable instance by wrapping the given source callback
      * <strong>without any safeguards; you should manage the lifecycle and response
-     * to downstream cancellation/dispose</strong>.
+     * to downstream disposal</strong>.
      * <p>
      * <img width="640" height="260" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.unsafeCreate.png" alt="">
      * <dl>
@@ -388,7 +388,6 @@ public abstract class Completable implements CompletableSource {
         return RxJavaPlugins.onAssembly(new CompletableError(error));
     }
 
-
     /**
      * Returns a Completable instance that runs the given Action for each subscriber and
      * emits either an unchecked exception or simply completes.
@@ -397,6 +396,13 @@ public abstract class Completable implements CompletableSource {
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code fromAction} does not operate by default on a particular {@link Scheduler}.</dd>
+     *  <dt><b>Error handling:</b></dt>
+     *  <dd> If the {@link Action} throws an exception, the respective {@link Throwable} is
+     *  delivered to the downstream via {@link CompletableObserver#onError(Throwable)},
+     *  except when the downstream has disposed this {@code Completable} source.
+     *  In this latter case, the {@code Throwable} is delivered to the global error handler via
+     *  {@link RxJavaPlugins#onError(Throwable)} as an {@link io.reactivex.exceptions.UndeliverableException UndeliverableException}.
+     *  </dd>
      * </dl>
      * @param run the runnable to run for each subscriber
      * @return the new Completable instance
@@ -417,6 +423,13 @@ public abstract class Completable implements CompletableSource {
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code fromCallable} does not operate by default on a particular {@link Scheduler}.</dd>
+     *  <dt><b>Error handling:</b></dt>
+     *  <dd> If the {@link Callable} throws an exception, the respective {@link Throwable} is
+     *  delivered to the downstream via {@link CompletableObserver#onError(Throwable)},
+     *  except when the downstream has disposed this {@code Completable} source.
+     *  In this latter case, the {@code Throwable} is delivered to the global error handler via
+     *  {@link RxJavaPlugins#onError(Throwable)} as an {@link io.reactivex.exceptions.UndeliverableException UndeliverableException}.
+     *  </dd>
      * </dl>
      * @param callable the callable instance to execute for each subscriber
      * @return the new Completable instance
@@ -433,7 +446,7 @@ public abstract class Completable implements CompletableSource {
      * <p>
      * <img width="640" height="628" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.fromFuture.png" alt="">
      * <p>
-     * Note that cancellation from any of the subscribers to this Completable will cancel the future.
+     * Note that if any of the observers to this Completable call dispose, this Completable will cancel the future.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code fromFuture} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -581,13 +594,13 @@ public abstract class Completable implements CompletableSource {
      *  <dd>{@code mergeArray} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code CompletableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are cancelled.
+     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are disposed.
      *  If more than one {@code CompletableSource} signals an error, the resulting {@code Completable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Completable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Completable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeArrayDelayError(CompletableSource...)} to merge sources and terminate only when all source {@code CompletableSource}s
      *  have completed or failed with an error.
@@ -621,13 +634,13 @@ public abstract class Completable implements CompletableSource {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code CompletableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are cancelled.
+     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are disposed.
      *  If more than one {@code CompletableSource} signals an error, the resulting {@code Completable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Completable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Completable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(Iterable)} to merge sources and terminate only when all source {@code CompletableSource}s
      *  have completed or failed with an error.
@@ -658,13 +671,13 @@ public abstract class Completable implements CompletableSource {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code CompletableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are cancelled.
+     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are disposed.
      *  If more than one {@code CompletableSource} signals an error, the resulting {@code Completable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Completable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Completable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(Publisher)} to merge sources and terminate only when all source {@code CompletableSource}s
      *  have completed or failed with an error.
@@ -695,13 +708,13 @@ public abstract class Completable implements CompletableSource {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code CompletableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are cancelled.
+     *  {@code Completable} terminates with that {@code Throwable} and all other source {@code CompletableSource}s are disposed.
      *  If more than one {@code CompletableSource} signals an error, the resulting {@code Completable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Completable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Completable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(Publisher, int)} to merge sources and terminate only when all source {@code CompletableSource}s
      *  have completed or failed with an error.
@@ -789,7 +802,6 @@ public abstract class Completable implements CompletableSource {
         ObjectHelper.requireNonNull(sources, "sources is null");
         return RxJavaPlugins.onAssembly(new CompletableMergeDelayErrorIterable(sources));
     }
-
 
     /**
      * Returns a Completable that subscribes to all Completables in the source sequence and delays
@@ -940,7 +952,7 @@ public abstract class Completable implements CompletableSource {
      * <p>
      * <img width="640" height="332" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.using.b.png" alt="">
      * <p>
-     * If this overload performs a lazy cancellation after the terminal event is emitted.
+     * If this overload performs a lazy disposal after the terminal event is emitted.
      * Exceptions thrown at this time will be delivered to RxJavaPlugins only.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
@@ -1573,7 +1585,7 @@ public abstract class Completable implements CompletableSource {
      *  <dd>{@code doFinally} does not operate by default on a particular {@link Scheduler}.</dd>
      * </dl>
      * <p>History: 2.0.1 - experimental
-     * @param onFinally the action called when this Completable terminates or gets cancelled
+     * @param onFinally the action called when this Completable terminates or gets disposed
      * @return the new Completable instance
      * @since 2.1
      */
@@ -1840,7 +1852,7 @@ public abstract class Completable implements CompletableSource {
     }
 
     /**
-     * Returns a Completable that repeatedly subscribes to this Completable until cancelled.
+     * Returns a Completable that repeatedly subscribes to this Completable until disposed.
      * <p>
      * <img width="640" height="373" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.repeat.png" alt="">
      * <dl>
@@ -2143,7 +2155,7 @@ public abstract class Completable implements CompletableSource {
     }
 
     /**
-     * Subscribes to this CompletableConsumable and returns a Disposable which can be used to cancel
+     * Subscribes to this CompletableConsumable and returns a Disposable which can be used to dispose
      * the subscription.
      * <p>
      * <img width="640" height="352" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.subscribe.png" alt="">
@@ -2151,7 +2163,7 @@ public abstract class Completable implements CompletableSource {
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code subscribe} does not operate by default on a particular {@link Scheduler}.</dd>
      * </dl>
-     * @return the Disposable that allows cancelling the subscription
+     * @return the Disposable that allows disposing the subscription
      */
     @SchedulerSupport(SchedulerSupport.NONE)
     public final Disposable subscribe() {
@@ -2167,6 +2179,8 @@ public abstract class Completable implements CompletableSource {
         try {
 
             observer = RxJavaPlugins.onSubscribe(this, observer);
+
+            ObjectHelper.requireNonNull(observer, "The RxJavaPlugins.onSubscribe hook returned a null CompletableObserver. Please check the handler provided to RxJavaPlugins.setOnCompletableSubscribe for invalid null returns. Further reading: https://github.com/ReactiveX/RxJava/wiki/Plugins");
 
             subscribeActual(observer);
         } catch (NullPointerException ex) { // NOPMD
@@ -2231,7 +2245,7 @@ public abstract class Completable implements CompletableSource {
      * </dl>
      * @param onComplete the runnable that is called if the Completable completes normally
      * @param onError the consumer that is called if this Completable emits an error
-     * @return the Disposable that can be used for cancelling the subscription asynchronously
+     * @return the Disposable that can be used for disposing the subscription asynchronously
      * @throws NullPointerException if either callback is null
      */
     @CheckReturnValue
@@ -2259,7 +2273,7 @@ public abstract class Completable implements CompletableSource {
      *  <dd>{@code subscribe} does not operate by default on a particular {@link Scheduler}.</dd>
      * </dl>
      * @param onComplete the runnable called when this Completable completes normally
-     * @return the Disposable that allows cancelling the subscription
+     * @return the Disposable that allows disposing the subscription
      */
     @CheckReturnValue
     @SchedulerSupport(SchedulerSupport.NONE)
@@ -2569,7 +2583,7 @@ public abstract class Completable implements CompletableSource {
     }
 
     /**
-     * Returns a Completable which makes sure when a subscriber cancels the subscription, the
+     * Returns a Completable which makes sure when a subscriber disposes the subscription, the
      * dispose is called on the specified scheduler.
      * <p>
      * <img width="640" height="716" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/Completable.unsubscribeOn.png" alt="">
@@ -2577,7 +2591,7 @@ public abstract class Completable implements CompletableSource {
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code unsubscribeOn} calls dispose() of the upstream on the {@link Scheduler} you specify.</dd>
      * </dl>
-     * @param scheduler the target scheduler where to execute the cancellation
+     * @param scheduler the target scheduler where to execute the disposing
      * @return the new Completable instance
      * @throws NullPointerException if scheduler is null
      */

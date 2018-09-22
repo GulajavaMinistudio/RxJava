@@ -1955,6 +1955,13 @@ public abstract class Flowable<T> implements Publisher<T> {
      *   <dd>The operator honors backpressure from downstream.</dd>
      *   <dt><b>Scheduler:</b></dt>
      *   <dd>{@code fromCallable} does not operate by default on a particular {@link Scheduler}.</dd>
+     *   <dt><b>Error handling:</b></dt>
+     *   <dd> If the {@link Callable} throws an exception, the respective {@link Throwable} is
+     *   delivered to the downstream via {@link Subscriber#onError(Throwable)},
+     *   except when the downstream has canceled this {@code Flowable} source.
+     *   In this latter case, the {@code Throwable} is delivered to the global error handler via
+     *   {@link RxJavaPlugins#onError(Throwable)} as an {@link io.reactivex.exceptions.UndeliverableException UndeliverableException}.
+     *   </dd>
      * </dl>
      *
      * @param supplier
@@ -3474,7 +3481,6 @@ public abstract class Flowable<T> implements Publisher<T> {
         return fromIterable(sources).flatMap((Function)Functions.identity(), true);
     }
 
-
     /**
      * Flattens an Iterable of Publishers into one Publisher, in a way that allows a Subscriber to receive all
      * successfully emitted items from each of the source Publishers without being interrupted by an error
@@ -3786,7 +3792,6 @@ public abstract class Flowable<T> implements Publisher<T> {
         ObjectHelper.requireNonNull(source3, "source3 is null");
         return fromArray(source1, source2, source3).flatMap((Function)Functions.identity(), true, 3);
     }
-
 
     /**
      * Flattens four Publishers into one Publisher, in a way that allows a Subscriber to receive all
@@ -4628,7 +4633,6 @@ public abstract class Flowable<T> implements Publisher<T> {
         ObjectHelper.requireNonNull(source2, "source2 is null");
         return zipArray(Functions.toFunction(zipper), delayError, bufferSize(), source1, source2);
     }
-
 
     /**
      * Returns a Flowable that emits the results of a specified combiner function applied to combinations of
@@ -5838,15 +5842,16 @@ public abstract class Flowable<T> implements Publisher<T> {
     }
 
     /**
-     * Returns a {@link Future} representing the single value emitted by this {@code Flowable}.
+     * Returns a {@link Future} representing the only value emitted by this {@code Flowable}.
+     * <p>
+     * <img width="640" height="324" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/Flowable.toFuture.png" alt="">
      * <p>
      * If the {@link Flowable} emits more than one item, {@link java.util.concurrent.Future} will receive an
-     * {@link java.lang.IllegalArgumentException}. If the {@link Flowable} is empty, {@link java.util.concurrent.Future}
-     * will receive a {@link java.util.NoSuchElementException}.
+     * {@link java.lang.IndexOutOfBoundsException}. If the {@link Flowable} is empty, {@link java.util.concurrent.Future}
+     * will receive a {@link java.util.NoSuchElementException}. The {@code Flowable} source has to terminate in order
+     * for the returned {@code Future} to terminate as well.
      * <p>
      * If the {@code Flowable} may emit more than one item, use {@code Flowable.toList().toFuture()}.
-     * <p>
-     * <img width="640" height="395" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/B.toFuture.png" alt="">
      * <dl>
      *  <dt><b>Backpressure:</b></dt>
      *  <dd>The operator consumes the source {@code Flowable} in an unbounded manner
@@ -7356,7 +7361,6 @@ public abstract class Flowable<T> implements Publisher<T> {
         }
         return RxJavaPlugins.onAssembly(new FlowableConcatMap<T, R>(this, mapper, prefetch, tillTheEnd ? ErrorMode.END : ErrorMode.BOUNDARY));
     }
-
 
     /**
      * Maps a sequence of values into Publishers and concatenates these Publishers eagerly into a single
@@ -10749,7 +10753,6 @@ public abstract class Flowable<T> implements Publisher<T> {
                 this, other, leftEnd, rightEnd, resultSelector));
     }
 
-
     /**
      * Returns a Maybe that emits the last item emitted by this Flowable or completes if
      * this Flowable is empty.
@@ -12134,8 +12137,6 @@ public abstract class Flowable<T> implements Publisher<T> {
      * Publisher, then feeds the result of that function along with the second item emitted by the source
      * Publisher into the same function, and so on until all items have been emitted by the finite source Publisher,
      * and emits the final result from the final call to your function as its sole item.
-     * <p>
-     * If the source is empty, a {@code NoSuchElementException} is signaled.
      * <p>
      * <img width="640" height="320" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/reduce.png" alt="">
      * <p>
@@ -14473,7 +14474,7 @@ public abstract class Flowable<T> implements Publisher<T> {
         try {
             Subscriber<? super T> z = RxJavaPlugins.onSubscribe(this, s);
 
-            ObjectHelper.requireNonNull(z, "Plugin returned null Subscriber");
+            ObjectHelper.requireNonNull(z, "The RxJavaPlugins.onSubscribe hook returned a null FlowableSubscriber. Please check the handler provided to RxJavaPlugins.setOnFlowableSubscribe for invalid null returns. Further reading: https://github.com/ReactiveX/RxJava/wiki/Plugins");
 
             subscribeActual(z);
         } catch (NullPointerException e) { // NOPMD
@@ -14702,7 +14703,6 @@ public abstract class Flowable<T> implements Publisher<T> {
     public final <R> Flowable<R> switchMap(Function<? super T, ? extends Publisher<? extends R>> mapper, int bufferSize) {
         return switchMap0(mapper, bufferSize, false);
     }
-
 
     /**
      * Maps the upstream values into {@link CompletableSource}s, subscribes to the newer one while

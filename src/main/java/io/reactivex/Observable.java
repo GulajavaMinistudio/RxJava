@@ -53,7 +53,7 @@ import io.reactivex.schedulers.*;
  * The design of this class was derived from the
  * <a href="https://github.com/reactive-streams/reactive-streams-jvm">Reactive-Streams design and specification</a>
  * by removing any backpressure-related infrastructure and implementation detail, replacing the
- * {@code org.reactivestreams.Subscription} with {@link Disposable} as the primary means to cancel
+ * {@code org.reactivestreams.Subscription} with {@link Disposable} as the primary means to dispose of
  * a flow.
  * <p>
  * The {@code Observable} follows the protocol
@@ -64,7 +64,7 @@ import io.reactivex.schedulers.*;
  * the stream can be disposed through the {@code Disposable} instance provided to consumers through
  * {@code Observer.onSubscribe}.
  * <p>
- * Unlike the {@code Observable} of version 1.x, {@link #subscribe(Observer)} does not allow external cancellation
+ * Unlike the {@code Observable} of version 1.x, {@link #subscribe(Observer)} does not allow external disposal
  * of a subscription and the {@code Observer} instance is expected to expose such capability.
  * <p>Example:
  * <pre><code>
@@ -86,7 +86,7 @@ import io.reactivex.schedulers.*;
  *     });
  * 
  * Thread.sleep(500);
- * // the sequence now can be cancelled via dispose()
+ * // the sequence can now be disposed via dispose()
  * d.dispose();
  * </code></pre>
  * 
@@ -1757,8 +1757,14 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * <dl>
      *   <dt><b>Scheduler:</b></dt>
      *   <dd>{@code fromCallable} does not operate by default on a particular {@link Scheduler}.</dd>
+     *   <dt><b>Error handling:</b></dt>
+     *   <dd> If the {@link Callable} throws an exception, the respective {@link Throwable} is
+     *   delivered to the downstream via {@link Observer#onError(Throwable)},
+     *   except when the downstream has disposed this {@code Observable} source.
+     *   In this latter case, the {@code Throwable} is delivered to the global error handler via
+     *   {@link RxJavaPlugins#onError(Throwable)} as an {@link io.reactivex.exceptions.UndeliverableException UndeliverableException}.
+     *   </dd>
      * </dl>
-     *
      * @param supplier
      *         a function, the execution of which should be deferred; {@code fromCallable} will invoke this
      *         function only when an observer subscribes to the ObservableSource that {@code fromCallable} returns
@@ -2048,7 +2054,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * {@code onComplete} to signal a value or a terminal event. Signalling multiple {@code onNext}
      * in a call will make the operator signal {@code IllegalStateException}.
      * @param disposeState the Consumer that is called with the current state when the generator
-     * terminates the sequence or it gets cancelled
+     * terminates the sequence or it gets disposed
      * @return the new Observable instance
      */
     @CheckReturnValue
@@ -2104,7 +2110,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * the next invocation. Signalling multiple {@code onNext}
      * in a call will make the operator signal {@code IllegalStateException}.
      * @param disposeState the Consumer that is called with the current state when the generator
-     * terminates the sequence or it gets cancelled
+     * terminates the sequence or it gets disposed
      * @return the new Observable instance
      */
     @CheckReturnValue
@@ -2692,13 +2698,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(Iterable, int, int)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -2739,13 +2745,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code mergeArray} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeArrayDelayError(int, int, ObservableSource...)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -2785,13 +2791,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(Iterable)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -2826,13 +2832,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(Iterable, int)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -2871,13 +2877,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(ObservableSource)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -2914,13 +2920,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(ObservableSource, int)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -2961,13 +2967,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(ObservableSource, ObservableSource)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -3004,13 +3010,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(ObservableSource, ObservableSource, ObservableSource)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -3050,13 +3056,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code merge} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeDelayError(ObservableSource, ObservableSource, ObservableSource, ObservableSource)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -3101,13 +3107,13 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>{@code mergeArray} does not operate by default on a particular {@link Scheduler}.</dd>
      *  <dt><b>Error handling:</b></dt>
      *  <dd>If any of the source {@code ObservableSource}s signal a {@code Throwable} via {@code onError}, the resulting
-     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are cancelled.
+     *  {@code Observable} terminates with that {@code Throwable} and all other source {@code ObservableSource}s are disposed.
      *  If more than one {@code ObservableSource} signals an error, the resulting {@code Observable} may terminate with the
      *  first one's error or, depending on the concurrency of the sources, may terminate with a
      *  {@code CompositeException} containing two or more of the various error signals.
      *  {@code Throwable}s that didn't make into the composite will be sent (individually) to the global error handler via
      *  {@link RxJavaPlugins#onError(Throwable)} method as {@code UndeliverableException} errors. Similarly, {@code Throwable}s
-     *  signaled by source(s) after the returned {@code Observable} has been cancelled or terminated with a
+     *  signaled by source(s) after the returned {@code Observable} has been disposed or terminated with a
      *  (composite) error will be sent to the same global error handler.
      *  Use {@link #mergeArrayDelayError(ObservableSource...)} to merge sources and terminate only when all source {@code ObservableSource}s
      *  have completed or failed with an error.
@@ -3903,7 +3909,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
     /**
      * Create an Observable by wrapping an ObservableSource <em>which has to be implemented according
      * to the Reactive-Streams-based Observable specification by handling
-     * cancellation correctly; no safeguards are provided by the Observable itself</em>.
+     * disposal correctly; no safeguards are provided by the Observable itself</em>.
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code unsafeCreate} by default doesn't operate on any particular {@link Scheduler}.</dd>
@@ -5334,15 +5340,16 @@ public abstract class Observable<T> implements ObservableSource<T> {
     }
 
     /**
-     * Returns a {@link Future} representing the single value emitted by this {@code Observable}.
+     * Returns a {@link Future} representing the only value emitted by this {@code Observable}.
+     * <p>
+     * <img width="640" height="312" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/toFuture.o.png" alt="">
      * <p>
      * If the {@link Observable} emits more than one item, {@link java.util.concurrent.Future} will receive an
-     * {@link java.lang.IllegalArgumentException}. If the {@link Observable} is empty, {@link java.util.concurrent.Future}
-     * will receive an {@link java.util.NoSuchElementException}.
+     * {@link java.lang.IndexOutOfBoundsException}. If the {@link Observable} is empty, {@link java.util.concurrent.Future}
+     * will receive an {@link java.util.NoSuchElementException}. The {@code Observable} source has to terminate in order
+     * for the returned {@code Future} to terminate as well.
      * <p>
      * If the {@code Observable} may emit more than one item, use {@code Observable.toList().toFuture()}.
-     * <p>
-     * <img width="640" height="389" src="https://github.com/ReactiveX/RxJava/wiki/images/rx-operators/toFuture.o.png" alt="">
      * <dl>
      *  <dt><b>Scheduler:</b></dt>
      *  <dd>{@code toFuture} does not operate by default on a particular {@link Scheduler}.</dd>
@@ -5428,7 +5435,6 @@ public abstract class Observable<T> implements ObservableSource<T> {
     public final void blockingSubscribe(Consumer<? super T> onNext, Consumer<? super Throwable> onError) {
         ObservableBlockingSubscribe.subscribe(this, onNext, onError, Functions.EMPTY_ACTION);
     }
-
 
     /**
      * Subscribes to the source and calls the given callbacks <strong>on the current thread</strong>.
@@ -7576,10 +7582,10 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * <p>
      * When the upstream signals an {@link Notification#createOnError(Throwable) onError} or
      * {@link Notification#createOnComplete() onComplete} item, the
-     * returned Observable cancels the flow and terminates with that type of terminal event:
+     * returned Observable disposes of the flow and terminates with that type of terminal event:
      * <pre><code>
      * Observable.just(createOnNext(1), createOnComplete(), createOnNext(2))
-     * .doOnDispose(() -&gt; System.out.println("Cancelled!"));
+     * .doOnDispose(() -&gt; System.out.println("Disposed!"));
      * .test()
      * .assertResult(1);
      * </code></pre>
@@ -7877,7 +7883,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      *  <dd>This operator supports boundary-limited synchronous or asynchronous queue-fusion.</dd>
      * </dl>
      * <p>History: 2.0.1 - experimental
-     * @param onFinally the action called when this Observable terminates or gets cancelled
+     * @param onFinally the action called when this Observable terminates or gets disposed
      * @return the new Observable instance
      * @since 2.1
      */
@@ -8040,7 +8046,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
 
     /**
      * Calls the appropriate onXXX method (shared between all Observer) for the lifecycle events of
-     * the sequence (subscription, cancellation, requesting).
+     * the sequence (subscription, disposal, requesting).
      * <p>
      * <img width="640" height="310" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/doOnLifecycle.o.png" alt="">
      * <dl>
@@ -8913,7 +8919,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * @param onNext
      *            {@link Consumer} to execute for each item.
      * @return
-     *            a Disposable that allows cancelling an asynchronous sequence
+     *            a Disposable that allows disposing of an asynchronous sequence
      * @throws NullPointerException
      *             if {@code onNext} is null
      * @see <a href="http://reactivex.io/documentation/operators/subscribe.html">ReactiveX operators documentation: Subscribe</a>
@@ -8941,7 +8947,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * @param onNext
      *            {@link Predicate} to execute for each item.
      * @return
-     *            a Disposable that allows cancelling an asynchronous sequence
+     *            a Disposable that allows disposing of an asynchronous sequence
      * @throws NullPointerException
      *             if {@code onNext} is null
      * @see <a href="http://reactivex.io/documentation/operators/subscribe.html">ReactiveX operators documentation: Subscribe</a>
@@ -8965,7 +8971,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * @param onError
      *            {@link Consumer} to execute when an error is emitted.
      * @return
-     *            a Disposable that allows cancelling an asynchronous sequence
+     *            a Disposable that allows disposing of an asynchronous sequence
      * @throws NullPointerException
      *             if {@code onNext} is null, or
      *             if {@code onError} is null
@@ -8992,7 +8998,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
      * @param onComplete
      *            {@link Action} to execute when completion is signalled.
      * @return
-     *            a Disposable that allows cancelling an asynchronous sequence
+     *            a Disposable that allows disposing of an asynchronous sequence
      * @throws NullPointerException
      *             if {@code onNext} is null, or
      *             if {@code onError} is null, or
@@ -12079,7 +12085,7 @@ public abstract class Observable<T> implements ObservableSource<T> {
         try {
             observer = RxJavaPlugins.onSubscribe(this, observer);
 
-            ObjectHelper.requireNonNull(observer, "Plugin returned null Observer");
+            ObjectHelper.requireNonNull(observer, "The RxJavaPlugins.onSubscribe hook returned a null Observer. Please change the handler provided to RxJavaPlugins.setOnObservableSubscribe for invalid null returns. Further reading: https://github.com/ReactiveX/RxJava/wiki/Plugins");
 
             subscribeActual(observer);
         } catch (NullPointerException e) { // NOPMD
