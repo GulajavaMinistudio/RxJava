@@ -14461,7 +14461,8 @@ public abstract class Flowable<T> implements Publisher<T> {
      * @throws NullPointerException
      *             if {@code onNext} is null, or
      *             if {@code onError} is null, or
-     *             if {@code onComplete} is null
+     *             if {@code onComplete} is null, or
+     *             if {@code onSubscribe} is null
      * @see <a href="http://reactivex.io/documentation/operators/subscribe.html">ReactiveX operators documentation: Subscribe</a>
      */
     @CheckReturnValue
@@ -18042,7 +18043,7 @@ public abstract class Flowable<T> implements Publisher<T> {
      * <br>To work around this termination property,
      * use {@link #doOnCancel(Action)} as well or use {@code using()} to do cleanup in case of completion
      * or cancellation.
-     *
+     * <p>
      * <img width="640" height="380" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/zip.png" alt="">
      * <dl>
      *  <dt><b>Backpressure:</b></dt>
@@ -18089,7 +18090,7 @@ public abstract class Flowable<T> implements Publisher<T> {
      * <br>To work around this termination property,
      * use {@link #doOnCancel(Action)} as well or use {@code using()} to do cleanup in case of completion
      * or cancellation.
-     *
+     * <p>
      * <img width="640" height="380" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/zip.png" alt="">
      * <dl>
      *  <dt><b>Backpressure:</b></dt>
@@ -18139,7 +18140,7 @@ public abstract class Flowable<T> implements Publisher<T> {
      * <br>To work around this termination property,
      * use {@link #doOnCancel(Action)} as well or use {@code using()} to do cleanup in case of completion
      * or cancellation.
-     *
+     * <p>
      * <img width="640" height="380" src="https://raw.github.com/wiki/ReactiveX/RxJava/images/rx-operators/zip.png" alt="">
      * <dl>
      *  <dt><b>Backpressure:</b></dt>
